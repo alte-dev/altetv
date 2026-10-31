@@ -115,6 +115,8 @@ fun HomeScreen(
     onAddSource: () -> Unit,
     onRefresh: () -> Unit,
     onPlayCatchup: (mediaKey: String, url: String, title: String, ua: String) -> Unit = { _, _, _, _ -> },
+    onOpenSearch: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     viewModel: ChannelsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -273,22 +275,7 @@ fun HomeScreen(
     // muted preview is still a second stream, which fights the recording and risks a provider ban.
     val recordingActive = activeRecordings.isNotEmpty()
     LaunchedEffect(highlightedRow?.key, previewEnabled, screenResumed, recordingActive) {
-        val row = highlightedRow
-        if (!previewEnabled || !screenResumed || recordingActive || row == null) {
-            previewController.stop()
-            return@LaunchedEffect
-        }
-        val channel = row.primary
-        val source = graph.sourceRepository.byId(channel.sourceId)
-        previewController.play(
-            PlayerController.Request(
-                url = channel.streamUrl,
-                title = channel.shownName,
-                userAgent = source?.userAgent ?: "OpenTV/0.1 (Android)",
-                isLive = true,
-            ),
-            debounce = true,
-        )
+        previewController.stop()
     }
 
     Row(Modifier.fillMaxSize()) {
@@ -371,6 +358,21 @@ fun HomeScreen(
                         modifier = if (groupSelected) Modifier.focusRequester(railFocusRequester) else Modifier,
                     )
                 }
+                item(key = "nav-divider") { Spacer(Modifier.height(14.dp)) }
+                item(key = "nav-search") {
+                    RailEntry(
+                        label = stringResource(R.string.nav_search),
+                        selected = false,
+                        onClick = onOpenSearch,
+                    )
+                }
+                item(key = "nav-settings") {
+                    RailEntry(
+                        label = stringResource(R.string.nav_settings),
+                        selected = false,
+                        onClick = onOpenSettings,
+                    )
+                }
             }
         }
 
@@ -423,11 +425,7 @@ fun HomeScreen(
                     onWatch = { highlightedRow?.let { goFullscreen(it.primary) } },
                     onRefresh = onRefresh,
                     onAddSource = onAddSource,
-                    previewPlayer = if (previewEnabled && !recordingActive) previewController.player else null,
-                    isRecording = highlightedRow?.primary?.id?.let { id ->
-                        activeRecordings.any { it.channelId == id }
-                    } == true,
-                    onRecord = { recordSelected() },
+                    previewPlayer = null,
                     dayLabel = dayLabel,
                     canGoPrevDay = guideDayOffset > 0,
                     onPrevDay = { viewModel.nudgeGuideDay(-1) },
@@ -452,7 +450,7 @@ fun HomeScreen(
                     ChannelList(
                         rows = rows,
                         selectedKey = highlightedRow?.key,
-                        onSelectRow = { row -> channelMenu = row },
+                        onSelectRow = { row -> requestLive(row.primary) },
                         onFocusRow = onFocusChannel,
                         onToggleFavourite = { viewModel.toggleFavourite(it) },
                         onExitLeftFromChannel = onExitLeftChannel,
@@ -466,9 +464,9 @@ fun HomeScreen(
                         selectedKey = highlightedRow?.key,
                         // OK on a channel opens its menu: Watch, Record now, Schedule a later show,
                         // Record series. The preview already follows the highlight as you browse.
-                        onSelectRow = { row -> channelMenu = row },
+                        onSelectRow = { row -> requestLive(row.primary) },
                         onFocusRow = onFocusChannel,
-                        onProgramme = { row, programme -> recordTarget = row to programme },
+                        onProgramme = { row, _ -> requestLive(row.primary) },
                         onToggleFavourite = { viewModel.toggleFavourite(it) },
                         onExitLeftFromChannel = onExitLeftChannel,
                         modifier = Modifier.weight(1f).padding(start = 12.dp, end = 12.dp),
@@ -479,409 +477,6 @@ fun HomeScreen(
     }
 
     // The record menu for a programme picked in the grid.
-    recordTarget?.let { (targetRow, programme) ->
-        val channel = targetRow.primary
-        // Which quality actually gets recorded. Defaults to the best variant, but the user can pick
-        // (Sky Q's "record HD or SD"). Each variant channel carries its own stream URL, so the pick
-        // flows straight through to the capture. Only surfaced when the channel has more than one.
-        var chosenVariant by remember(targetRow.primary.id) { mutableStateOf(targetRow.primary) }
-        // Which provider records it, when this channel exists on more than one. Recording from a
-        // second provider's account is what lets you keep watching on the first — the only real way
-        // around a single-connection provider (something even TiviMate can't do).
-        var sourceOptions by remember(channel.id) { mutableStateOf<List<Channel>>(emptyList()) }
-        LaunchedEffect(channel.id) { sourceOptions = graph.catalogRepository.recordSourceOptions(channel) }
-        val multiSource = sourceOptions.size > 1
-        LaunchedEffect(sourceOptions) {
-            if (sourceOptions.size > 1) {
-                chosenVariant = sourceOptions.firstOrNull { it.sourceId == channel.sourceId } ?: sourceOptions.first()
-            }
-        }
-        val liveNow = nowMillis in programme.startUtcMillis until programme.endUtcMillis
-        val recordingThis = activeRecordings.firstOrNull { it.channelId == channel.id }
-        Dialog(onDismissRequest = { recordTarget = null }) {
-            Column(
-                Modifier
-                    .width(440.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(24.dp),
-            ) {
-                Text(
-                    programme.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "${formatTime(programme.startUtcMillis)}–${formatTime(programme.endUtcMillis)}   ${channel.shownName}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(16.dp))
-
-                if (multiSource) {
-                    // Record from which provider — keeps the other account free to watch on.
-                    Text(
-                        stringResource(R.string.rec_record_from),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        sourceOptions.forEach { opt ->
-                            QualityChip(
-                                label = sources.firstOrNull { it.id == opt.sourceId }?.name
-                                    ?: stringResource(R.string.rec_source_unknown),
-                                selected = opt.id == chosenVariant.id,
-                                onClick = { chosenVariant = opt },
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                } else if (targetRow.variants.size > 1) {
-                    Text(
-                        stringResource(R.string.rec_quality_label),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        targetRow.variants.forEach { variant ->
-                            QualityChip(
-                                label = variant.qualityLabel.ifBlank { stringResource(R.string.rec_quality_sd) },
-                                selected = variant.id == chosenVariant.id,
-                                onClick = { chosenVariant = variant },
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                }
-
-                val isPast = programme.endUtcMillis <= nowMillis
-                when {
-                    liveNow && recordingThis != null -> RecordActionRow(stringResource(R.string.rec_stop_recording), primary = true) {
-                        graph.recordingEngine.stop(recordingThis.id)
-                        Toast.makeText(context, context.getString(R.string.rec_recording_stopped), Toast.LENGTH_SHORT).show()
-                        recordTarget = null
-                    }
-                    liveNow -> RecordActionRow(stringResource(R.string.rec_record_now), primary = true) {
-                        recordScope.launch { graph.recordingEngine.startChannel(chosenVariant, programme) }
-                        Toast.makeText(context, context.getString(R.string.rec_recording_channel, channel.shownName), Toast.LENGTH_LONG).show()
-                        promptBackgroundIfNeeded()
-                        recordTarget = null
-                    }
-                    // A finished programme on a catch-up channel plays back from the archive.
-                    isPast && channel.tvArchive -> RecordActionRow(stringResource(R.string.guide_watch_from_start), primary = true) {
-                        recordScope.launch {
-                            val source = graph.sourceRepository.byId(channel.sourceId)
-                            if (source == null) {
-                                Toast.makeText(context, context.getString(R.string.guide_catchup_link_failed), Toast.LENGTH_SHORT).show()
-                            } else {
-                                val mins = (programme.durationMillis / 60000).toInt().coerceAtLeast(1)
-                                val url = graph.xtreamApi.catchupUrl(source, channel.streamId, programme.startUtcMillis, mins)
-                                onPlayCatchup(
-                                    "catchup:${channel.id}:${programme.startUtcMillis}",
-                                    url,
-                                    "${channel.shownName} — ${programme.title}",
-                                    source.userAgent,
-                                )
-                            }
-                        }
-                        recordTarget = null
-                    }
-                    !isPast -> RecordActionRow(stringResource(R.string.rec_schedule_recording), primary = true) {
-                        recordScope.launch { graph.recordingEngine.scheduleProgramme(chosenVariant, programme) }
-                        Toast.makeText(context, context.getString(R.string.rec_scheduled_title, programme.title), Toast.LENGTH_LONG).show()
-                        promptBackgroundIfNeeded()
-                        recordTarget = null
-                    }
-                }
-
-                // Reminders — only for something that hasn't started yet.
-                if (!isPast) {
-                    var reminderSet by remember(channel.id, programme.startUtcMillis) {
-                        mutableStateOf<Boolean?>(null)
-                    }
-                    LaunchedEffect(channel.id, programme.startUtcMillis) {
-                        reminderSet =
-                            graph.reminderRepository.forProgramme(channel.id, programme.startUtcMillis) != null
-                    }
-                    if (reminderSet == true) {
-                        RecordActionRow(stringResource(R.string.guide_cancel_reminder)) {
-                            recordScope.launch {
-                                graph.reminderRepository.forProgramme(channel.id, programme.startUtcMillis)?.let {
-                                    ReminderScheduler.cancel(context, it.id)
-                                    graph.reminderRepository.delete(it.id)
-                                }
-                            }
-                            Toast.makeText(context, context.getString(R.string.guide_reminder_removed), Toast.LENGTH_SHORT).show()
-                            recordTarget = null
-                        }
-                    } else {
-                        RecordActionRow(stringResource(R.string.guide_remind_me)) {
-                            recordScope.launch { setReminder(graph, context, channel, programme, autoTune = false) }
-                            Toast.makeText(context, context.getString(R.string.guide_reminder_set, programme.title), Toast.LENGTH_LONG).show()
-                            recordTarget = null
-                        }
-                        RecordActionRow(stringResource(R.string.guide_auto_switch)) {
-                            recordScope.launch { setReminder(graph, context, channel, programme, autoTune = true) }
-                            Toast.makeText(context, context.getString(R.string.guide_will_switch, channel.shownName), Toast.LENGTH_LONG).show()
-                            recordTarget = null
-                        }
-                    }
-                }
-                RecordActionRow(stringResource(R.string.rec_record_series)) {
-                    recordScope.launch {
-                        graph.recordingEngine.recordSeries(channel, programme, targetRow.programmes)
-                    }
-                    Toast.makeText(context, context.getString(R.string.rec_series_recording_set, programme.title), Toast.LENGTH_LONG).show()
-                    promptBackgroundIfNeeded()
-                    recordTarget = null
-                }
-                RecordActionRow(stringResource(R.string.guide_watch_channel)) {
-                    recordTarget = null
-                    requestLive(channel)
-                }
-                RecordActionRow(stringResource(R.string.common_cancel)) { recordTarget = null }
-            }
-        }
-    }
-
-    // Single-connection guard: confirm before opening a live stream that would fight a recording.
-    pendingLiveChannel?.let { liveChannel ->
-        val recTitle = activeRecordings.firstOrNull()?.title.orEmpty()
-        Dialog(onDismissRequest = { pendingLiveChannel = null }) {
-            Column(
-                Modifier
-                    .width(480.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(20.dp),
-            ) {
-                Text(
-                    stringResource(R.string.rec_live_warn_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.rec_live_warn_body, recTitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(16.dp))
-                RecordActionRow(stringResource(R.string.rec_live_warn_watch)) {
-                    pendingLiveChannel = null
-                    activeRecordings.forEach { graph.recordingEngine.stop(it.id) }
-                    startLive(liveChannel)
-                }
-                RecordActionRow(stringResource(R.string.rec_live_warn_keep)) { pendingLiveChannel = null }
-            }
-        }
-    }
-
-    // The channel menu — opened by pressing OK on a channel. Watch, record what's on now, schedule
-    // a later programme, or record the whole series. A plain vertical list, so it's reliable on any
-    // remote — no fiddly timeline navigation needed.
-    channelMenu?.let { menuRow ->
-        val channel = menuRow.primary
-        val nowProg = menuRow.now
-        val recordingThis = activeRecordings.firstOrNull { it.channelId == channel.id }
-        val upcoming = menuRow.programmes.filter { it.startUtcMillis > nowMillis }.take(8)
-        Dialog(onDismissRequest = { channelMenu = null }) {
-            Column(
-                Modifier
-                    .width(480.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(20.dp),
-            ) {
-                Text(
-                    channel.shownName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                nowProg?.let {
-                    Text(
-                        stringResource(R.string.guide_now_title, it.title),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
-
-                Column(
-                    Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    RecordActionRow(stringResource(R.string.guide_watch)) {
-                        channelMenu = null
-                        requestLive(channel)
-                    }
-                    RecordActionRow(stringResource(R.string.guide_open_external)) {
-                        channelMenu = null
-                        recordScope.launch {
-                            val ua = graph.sourceRepository.byId(channel.sourceId)?.userAgent ?: "OpenTV/0.1 (Android)"
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(android.net.Uri.parse(channel.streamUrl), "video/*")
-                                putExtra("title", channel.shownName)
-                                // MX Player / VLC read the User-Agent from this header extra.
-                                putExtra("headers", arrayOf("User-Agent", ua))
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            runCatching {
-                                context.startActivity(
-                                    Intent.createChooser(intent, context.getString(R.string.guide_play_channel_with))
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }.onFailure {
-                                Toast.makeText(context, context.getString(R.string.guide_no_external_player), Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                    if (recordingThis != null) {
-                        RecordActionRow(stringResource(R.string.rec_stop_recording), primary = true) {
-                            graph.recordingEngine.stop(recordingThis.id)
-                            Toast.makeText(context, context.getString(R.string.rec_recording_stopped), Toast.LENGTH_SHORT).show()
-                            channelMenu = null
-                        }
-                    } else {
-                        RecordActionRow(stringResource(R.string.guide_record_now_playing), primary = true) {
-                            recordScope.launch { graph.recordingEngine.startChannel(channel, nowProg) }
-                            Toast.makeText(context, context.getString(R.string.rec_recording_started_see_tab, channel.shownName), Toast.LENGTH_LONG).show()
-                            promptBackgroundIfNeeded()
-                            channelMenu = null
-                        }
-                    }
-                    if (nowProg != null) {
-                        RecordActionRow(stringResource(R.string.rec_record_series_named, nowProg.title)) {
-                            recordScope.launch {
-                                graph.recordingEngine.recordSeries(channel, nowProg, menuRow.programmes)
-                            }
-                            Toast.makeText(context, context.getString(R.string.rec_series_recording_set, nowProg.title), Toast.LENGTH_LONG).show()
-                            promptBackgroundIfNeeded()
-                            channelMenu = null
-                        }
-                    }
-                    if (upcoming.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            stringResource(R.string.guide_later_header),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                        upcoming.forEach { programme ->
-                            RecordActionRow("${formatTime(programme.startUtcMillis)}   ${programme.title}") {
-                                // Open the programme dialog so the choice is record, remind or auto-switch —
-                                // not a surprise one-tap recording.
-                                channelMenu = null
-                                recordTarget = menuRow to programme
-                            }
-                        }
-                    }
-                    RecordActionRow(stringResource(R.string.common_cancel)) { channelMenu = null }
-                }
-            }
-        }
-    }
-
-    if (showBackgroundPrompt) {
-        RecordingBackgroundDialog(
-            onAllow = {
-                showBackgroundPrompt = false
-                context.requestIgnoreBatteryOptimizations()
-            },
-            onDismiss = { showBackgroundPrompt = false },
-        )
-    }
-}
-
-/** Inserts a reminder for a future programme and arms its alarm. No-op if one already exists. */
-private suspend fun setReminder(
-    graph: ServiceLocator.Graph,
-    context: android.content.Context,
-    channel: Channel,
-    programme: Programme,
-    autoTune: Boolean,
-) {
-    if (graph.reminderRepository.forProgramme(channel.id, programme.startUtcMillis) != null) return
-    val id = graph.reminderRepository.insert(
-        Reminder(
-            channelId = channel.id,
-            channelName = channel.displayName,
-            logoUrl = channel.logoUrl,
-            title = programme.title,
-            startUtcMillis = programme.startUtcMillis,
-            endUtcMillis = programme.endUtcMillis,
-            autoTune = autoTune,
-            createdAtMillis = System.currentTimeMillis(),
-        ),
-    )
-    ReminderScheduler.set(context, id, programme.startUtcMillis)
-}
-
-@Composable
-private fun RecordActionRow(label: String, primary: Boolean = false, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val bg = when {
-        focused -> MaterialTheme.colorScheme.primary
-        primary -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
-    }
-    val fg = when {
-        focused -> MaterialTheme.colorScheme.onPrimary
-        primary -> MaterialTheme.colorScheme.onPrimaryContainer
-        else -> MaterialTheme.colorScheme.onSurface
-    }
-    Text(
-        label,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Normal,
-        color = fg,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .onFocusChanged { focused = it.isFocused }
-            .clip(RoundedCornerShape(10.dp))
-            .background(bg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    )
-}
-
-/** A small focusable quality pill (FHD / HD / SD…) for the record dialog's "record HD or SD" choice. */
-@Composable
-private fun QualityChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val bg = when {
-        focused -> MaterialTheme.colorScheme.primary
-        selected -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
-    }
-    val fg = when {
-        focused -> MaterialTheme.colorScheme.onPrimary
-        selected -> MaterialTheme.colorScheme.onPrimaryContainer
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Text(
-        label,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        color = fg,
-        modifier = Modifier
-            .onFocusChanged { focused = it.isFocused }
-            .clip(RoundedCornerShape(8.dp))
-            .background(bg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    )
 }
 
 @Composable

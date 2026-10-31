@@ -565,13 +565,7 @@ fun PlayerScreen(
                         panel = if (panel == Panel.ASPECT) Panel.NONE else Panel.ASPECT; interaction++
                     }
                     Spacer(Modifier.width(10.dp))
-                    val recordingThis = activeRecordings.any { it.channelId == currentId }
-                    BarChip(
-                        icon = Icons.Filled.FiberManualRecord,
-                        label = if (recordingThis) stringResource(R.string.common_stop) else stringResource(R.string.player_record),
-                        selected = recordingThis,
-                        iconTint = Color(0xFFE53935),
-                    ) { toggleRecord() }
+
                     if (pipSupported) {
                         Spacer(Modifier.width(10.dp))
                         BarChip(Icons.Filled.PictureInPictureAlt, stringResource(R.string.player_pop_out), false) {

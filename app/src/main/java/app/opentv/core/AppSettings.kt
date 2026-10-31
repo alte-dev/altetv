@@ -49,7 +49,7 @@ class AppSettings private constructor(context: Context) {
     val subtitlesEnabled: StateFlow<Boolean> = _subtitlesEnabled.asStateFlow()
 
     /** Whether the selected channel plays live inside the guide's preview pane. */
-    private val _guidePreviewVideo = MutableStateFlow(prefs.getBoolean(KEY_PREVIEW_VIDEO, true))
+    private val _guidePreviewVideo = MutableStateFlow(prefs.getBoolean(KEY_PREVIEW_VIDEO, false))
     val guidePreviewVideo: StateFlow<Boolean> = _guidePreviewVideo.asStateFlow()
 
     /** Whether the guide preview plays sound (off by default — quieter while browsing). */
@@ -140,7 +140,7 @@ class AppSettings private constructor(context: Context) {
     }
 
     /** Whether launching the app jumps straight back to the last channel you watched. */
-    private val _resumeLastChannel = MutableStateFlow(prefs.getBoolean(KEY_RESUME_LAST, false))
+    private val _resumeLastChannel = MutableStateFlow(prefs.getBoolean(KEY_RESUME_LAST, true))
     val resumeLastChannel: StateFlow<Boolean> = _resumeLastChannel.asStateFlow()
 
     fun setResumeLastChannel(enabled: Boolean) {
@@ -201,10 +201,10 @@ class AppSettings private constructor(context: Context) {
     private val _liveEnabled = MutableStateFlow(prefs.getBoolean(KEY_CONTENT_LIVE, true))
     val liveEnabled: StateFlow<Boolean> = _liveEnabled.asStateFlow()
 
-    private val _moviesEnabled = MutableStateFlow(prefs.getBoolean(KEY_CONTENT_MOVIES, true))
+    private val _moviesEnabled = MutableStateFlow(prefs.getBoolean(KEY_CONTENT_MOVIES, false))
     val moviesEnabled: StateFlow<Boolean> = _moviesEnabled.asStateFlow()
 
-    private val _seriesEnabled = MutableStateFlow(prefs.getBoolean(KEY_CONTENT_SERIES, true))
+    private val _seriesEnabled = MutableStateFlow(prefs.getBoolean(KEY_CONTENT_SERIES, false))
     val seriesEnabled: StateFlow<Boolean> = _seriesEnabled.asStateFlow()
 
     fun setLiveEnabled(enabled: Boolean) {

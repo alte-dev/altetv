@@ -117,7 +117,7 @@ fun MainScreen(
             if (liveEnabled) add(Tab.LIVE)
             if (moviesEnabled) add(Tab.MOVIES)
             if (seriesEnabled) add(Tab.SHOWS)
-            add(Tab.RECORDINGS)
+            if (isEmpty()) add(Tab.LIVE)
         }
     }
     // The default/home tab is the first visible one — Live TV normally, otherwise the first type
@@ -161,15 +161,17 @@ fun MainScreen(
     // of it and leave a sliver poking out — so they live side by side and never collide.
     Column(Modifier.fillMaxSize()) {
       Row(Modifier.weight(1f).fillMaxWidth()) {
-        NavRail(
-            tabs = visibleTabs,
-            current = tab,
-            onSelect = { tab = it },
-            onOpenSearch = onOpenSearch,
-            onOpenSettings = onOpenSettings,
-            onOpenProfiles = onOpenProfiles,
-            activeProfileName = activeProfileName,
-        )
+        if (visibleTabs.size > 1) {
+            NavRail(
+                tabs = visibleTabs,
+                current = tab,
+                onSelect = { tab = it },
+                onOpenSearch = onOpenSearch,
+                onOpenSettings = onOpenSettings,
+                onOpenProfiles = onOpenProfiles,
+                activeProfileName = activeProfileName,
+            )
+        }
 
         Box(Modifier.weight(1f).fillMaxHeight()) {
             when (tab) {
@@ -181,6 +183,8 @@ fun MainScreen(
                     onAddSource = onAddSource,
                     onRefresh = onRefresh,
                     onPlayCatchup = onPlayCatchup,
+                    onOpenSearch = onOpenSearch,
+                    onOpenSettings = onOpenSettings,
                 )
                 Tab.MOVIES -> MoviesScreen(
                     onOpenMovie = onOpenMovie,
