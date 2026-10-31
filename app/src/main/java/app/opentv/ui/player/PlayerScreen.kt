@@ -469,7 +469,8 @@ fun PlayerScreen(
                     .align(Alignment.TopEnd)
                     .padding(32.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.82f))
+                    .background(Color(0xFF181818).copy(alpha = 0.92f))
+                    .border(1.dp, Color(0xFF333333), RoundedCornerShape(16.dp))
                     .padding(horizontal = 28.dp, vertical = 16.dp),
             ) {
                 Text(numberEntry, color = Color.White, style = MaterialTheme.typography.displaySmall)
@@ -535,7 +536,8 @@ fun PlayerScreen(
                     )
                     .padding(horizontal = 36.dp, vertical = 28.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.82f))
+                    .background(Color(0xFF181818).copy(alpha = 0.92f))
+                    .border(1.dp, Color(0xFF333333), RoundedCornerShape(16.dp))
                     .padding(horizontal = 24.dp, vertical = 14.dp),
             ) {
                 Column {
@@ -677,7 +679,7 @@ fun PlayerScreen(
                 Modifier
                     .fillMaxHeight()
                     .width(380.dp)
-                    .background(Color.Black.copy(alpha = 0.72f))
+                    .background(Color(0xFF141414).copy(alpha = 0.90f))
                     .padding(vertical = 16.dp),
             ) {
                 Text(

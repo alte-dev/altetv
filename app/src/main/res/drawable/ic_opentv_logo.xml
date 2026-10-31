@@ -8,16 +8,16 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- The screen: a rounded panel in the brand blue. -->
+    <!-- The screen: a rounded panel in brand orange. -->
     <path
-        android:fillColor="#5B8DEF"
+        android:fillColor="#FF7F00"
         android:pathData="M9,7 L39,7 A7,7 0 0 1 46,14 L46,34 A7,7 0 0 1 39,41 L9,41 A7,7 0 0 1 2,34 L2,14 A7,7 0 0 1 9,7 Z" />
     <!-- The play mark, so it reads as a player at a glance. -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M19,16 L34,24 L19,32 Z" />
-    <!-- A little stand foot, so the panel reads as a TV. -->
+    <!-- A little stand foot, in ruby red. -->
     <path
-        android:fillColor="#5B8DEF"
+        android:fillColor="#B93D46"
         android:pathData="M17,43 L31,43 L31,45.5 L17,45.5 Z" />
 </vector>

@@ -24,24 +24,28 @@ import androidx.compose.ui.unit.sp
  * actively unpleasant on a 55" panel at night, so everything here is anchored near-black with
  * a single restrained accent used only for focus and selection.
  */
-private val Accent = Color(0xFF7C93FF)
-private val AccentDim = Color(0xFF4B5DB8)
+private val Accent = Color(0xFFFF7F00)       // Warm vibrant brand orange
+private val AccentDim = Color(0xFFB93D46)    // Warm rich ruby red
 
 private val DarkScheme = darkColorScheme(
     primary = Accent,
-    onPrimary = Color(0xFF0A0C14),
-    primaryContainer = AccentDim,
-    onPrimaryContainer = Color(0xFFE6EAFF),
-    secondary = Color(0xFF9AA3C0),
-    background = Color(0xFF07080C),
-    onBackground = Color(0xFFE8EAF0),
-    surface = Color(0xFF0D0F16),
-    onSurface = Color(0xFFE8EAF0),
-    surfaceVariant = Color(0xFF171A24),
-    onSurfaceVariant = Color(0xFFA8AEC0),
-    outline = Color(0xFF2A2F3D),
-    error = Color(0xFFFF6B6B),
-    onError = Color(0xFF1A0505),
+    onPrimary = Color(0xFF121212),
+    primaryContainer = Color(0xFF381F17),
+    onPrimaryContainer = Color(0xFFFFD9CC),
+    secondary = Color(0xFFE58055),
+    onSecondary = Color(0xFF121212),
+    secondaryContainer = Color(0xFF2C2220),
+    onSecondaryContainer = Color(0xFFE8D4CC),
+    background = Color(0xFF121212),          // Neutral dark gray (no blue/navy)
+    onBackground = Color(0xFFEDEDED),
+    surface = Color(0xFF181818),             // Neutral dark gray surface
+    onSurface = Color(0xFFEDEDED),
+    surfaceVariant = Color(0xFF242424),      // Neutral medium-dark gray
+    onSurfaceVariant = Color(0xFFA4A4A4),    // Neutral secondary text
+    outline = Color(0xFF333333),             // Neutral divider/border
+    outlineVariant = Color(0xFF282828),
+    error = Color(0xFFFF5252),
+    onError = Color(0xFF180404),
 )
 
 /**
@@ -50,15 +54,19 @@ private val DarkScheme = darkColorScheme(
  * explicitly picks Light in settings gets it on any device.
  */
 private val LightScheme = lightColorScheme(
-    primary = Color(0xFF3B4FCC),
+    primary = Color(0xFFD66000),
     onPrimary = Color.White,
-    background = Color(0xFFFBFBFE),
-    onBackground = Color(0xFF13141A),
+    primaryContainer = Color(0xFFFFDBCF),
+    onPrimaryContainer = Color(0xFF381400),
+    secondary = Color(0xFFB93D46),
+    onSecondary = Color.White,
+    background = Color(0xFFF8F8F8),
+    onBackground = Color(0xFF181818),
     surface = Color.White,
-    onSurface = Color(0xFF13141A),
-    surfaceVariant = Color(0xFFEEF0F6),
-    onSurfaceVariant = Color(0xFF4A4F60),
-    outline = Color(0xFFD3D7E2),
+    onSurface = Color(0xFF181818),
+    surfaceVariant = Color(0xFFEEEEEE),
+    onSurfaceVariant = Color(0xFF555555),
+    outline = Color(0xFFD8D8D8),
 )
 
 /** Scaled up from the Material defaults: ten-foot viewing needs bigger text than a phone. */
