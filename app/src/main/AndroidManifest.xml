@@ -74,7 +74,7 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
-            android:supportsPictureInPicture="true"
+            android:supportsPictureInPicture="false"
             android:screenOrientation="fullUser"
             android:theme="@style/Theme.OpenTV">
 
