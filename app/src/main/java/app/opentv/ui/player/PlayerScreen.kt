@@ -87,6 +87,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -177,7 +178,15 @@ fun PlayerScreen(
     var paused by remember { mutableStateOf(false) }
     var resizeMode by remember { mutableIntStateOf(settings.playerResizeMode.value) }
 
-    var controlsVisible by remember { mutableStateOf(true) }
+    var controlsVisible by remember { mutableStateOf(false) }
+    var bannerVisible by remember { mutableStateOf(true) }
+    var bannerInteraction by remember { mutableIntStateOf(0) }
+    var currentProgramme by remember { mutableStateOf<String?>(null) }
+
+    fun showBanner() {
+        bannerVisible = true
+        bannerInteraction++
+    }
     var panel by remember { mutableStateOf(Panel.NONE) }
     var channelListVisible by remember { mutableStateOf(false) }
     var interaction by remember { mutableIntStateOf(0) }
@@ -216,7 +225,31 @@ fun PlayerScreen(
         interaction++
     }
 
+    LaunchedEffect(bannerVisible, bannerInteraction, currentId) {
+        if (bannerVisible) {
+            delay(3500L)
+            bannerVisible = false
+        }
+    }
+
+    LaunchedEffect(currentId) {
+        currentProgramme = null
+        val id = currentId ?: return@LaunchedEffect
+        val channel = variants.firstOrNull { it.id == id } ?: graph.catalogRepository.channel(id) ?: return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        var prog: app.opentv.data.model.Programme? = null
+        for (epgId in channel.epgCandidates) {
+            val list = graph.epgRepository.upcoming(epgId, now, 1)
+            if (list.isNotEmpty()) {
+                prog = list.first()
+                break
+            }
+        }
+        currentProgramme = prog?.title
+    }
+
     fun tuneTo(channel: Channel) {
+        showBanner()
         currentId = channel.id
         paused = false
         settings.lastChannelId = channel.id
@@ -240,6 +273,7 @@ fun PlayerScreen(
         // Remember where we came from so "Last channel" can bounce straight back. Quality switches
         // go through tuneTo directly, so they never count as a channel change here.
         currentId?.let { if (it != id) previousId = it }
+        showBanner()
         scope.launch {
             val channel = graph.catalogRepository.channel(id) ?: return@launch
             variants = graph.catalogRepository.variants(channel)
@@ -375,22 +409,34 @@ fun PlayerScreen(
                         interaction++
                         false
                     }
-                    // Channel up/down works whether or not the bar is showing — this remote has no
-                    // CH+/CH- keys, so up/down IS the channel changer. Each zap flashes the bar as a
-                    // channel banner, then it auto-hides.
-                    event.key == Key.DirectionUp || event.key == Key.ChannelUp -> { zapBy(-1); reveal(); true }
-                    event.key == Key.DirectionDown || event.key == Key.ChannelDown -> { zapBy(1); reveal(); true }
-                    // With the bar up, left/right drive its buttons; let them through.
+                    // Channel up/down zaps channels and flashes clean channel banner (not the control bar).
+                    event.key == Key.DirectionUp || event.key == Key.ChannelUp -> { zapBy(-1); showBanner(); true }
+                    event.key == Key.DirectionDown || event.key == Key.ChannelDown -> { zapBy(1); showBanner(); true }
+                    // Sol ok (Left arrow) ALWAYS opens the channel list!
+                    event.key == Key.DirectionLeft -> {
+                        if (panel != Panel.NONE) {
+                            false
+                        } else {
+                            controlsVisible = false
+                            if (queue.isNotEmpty()) channelListVisible = true
+                            true
+                        }
+                    }
+                    // With the bar up, let other keys navigate through its buttons.
                     controlsVisible -> {
                         interaction++
                         false
                     }
-                    // Immersive: left opens the channel list, right the quality picker.
-                    event.key == Key.DirectionLeft -> { if (queue.isNotEmpty()) channelListVisible = true; true }
+                    // Immersive: right opens the quality picker.
                     event.key == Key.DirectionRight -> {
                         if (variants.size > 1) { reveal(); panel = Panel.QUALITY }; true
                     }
-                    else -> { reveal(); true }
+                    // Center / OK button reveals controls bar
+                    event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter -> {
+                        reveal()
+                        true
+                    }
+                    else -> { showBanner(); true }
                 }
             }
             .focusRequester(rootFocus)
@@ -473,6 +519,46 @@ fun PlayerScreen(
             is PlayerController.State.Playing -> s.title
             is PlayerController.State.Error -> s.title
             else -> ""
+        }
+
+        // Clean TV channel banner overlay (non-interactive, no hover, no focus)
+        AnimatedVisibility(
+            visible = bannerVisible && !controlsVisible && !channelListVisible && !inPip,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomStart),
+        ) {
+            Box(
+                Modifier
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                    )
+                    .padding(horizontal = 36.dp, vertical = 28.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.82f))
+                    .padding(horizontal = 24.dp, vertical = 14.dp),
+            ) {
+                Column {
+                    Text(
+                        text = channelTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (!currentProgramme.isNullOrBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = currentProgramme.orEmpty(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFFF7F00),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
         }
 
         AnimatedVisibility(
