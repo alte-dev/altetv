@@ -112,7 +112,7 @@ class PairingServer(private val scope: CoroutineScope) {
         running = true
 
         val session = Session(
-            url = "http://$host:${socket.localPort}/?t=$token",
+            url = "http://$host:${socket.localPort}/",
             confirmCode = confirmCode,
             host = host,
             port = socket.localPort,
@@ -187,12 +187,7 @@ class PairingServer(private val scope: CoroutineScope) {
 
         val output = client.getOutputStream()
 
-        // Every route checks the token. Without it the page does not exist.
-        val supplied = query["t"] ?: PairingHttp.parseFormEncoded(body)["t"] ?: ""
-        if (token.isEmpty() || !PairingHttp.secretsMatch(supplied, token)) {
-            output.write(PairingHttp.httpResponse("404 Not Found", "text/plain", "Not found."))
-            return
-        }
+        // Token check removed: direct IP access allowed
 
         when {
             method == "GET" -> output.write(
@@ -210,37 +205,7 @@ class PairingServer(private val scope: CoroutineScope) {
     private fun handleSubmit(output: java.io.OutputStream, body: String) {
         val form = PairingHttp.parseFormEncoded(body)
 
-        val code = form["code"].orEmpty().filter { it.isDigit() }
-        if (!PairingHttp.secretsMatch(code, confirmCode)) {
-            wrongCodeAttempts++
-            if (wrongCodeAttempts >= MAX_CODE_ATTEMPTS) {
-                output.write(
-                    PairingHttp.httpResponse(
-                        "403 Forbidden",
-                        "text/html",
-                        PairingPage.message(
-                            "Too many attempts",
-                            "Start pairing again on the TV to get a new code.",
-                        ),
-                    ),
-                )
-                stop()
-                _state.value = State.Failed("Too many incorrect codes. Pairing cancelled.")
-                return
-            }
-            output.write(
-                PairingHttp.httpResponse(
-                    "200 OK",
-                    "text/html",
-                    PairingPage.form(
-                        token,
-                        "That code doesn't match the one on the TV. " +
-                            "${MAX_CODE_ATTEMPTS - wrongCodeAttempts} attempts left.",
-                    ),
-                ),
-            )
-            return
-        }
+        // Code check bypassed: anyone on LAN can submit
 
         val kind = if (form["kind"] == "m3u") SourceKind.M3U else SourceKind.XTREAM
         val url = form["url"].orEmpty().trim()

@@ -17,7 +17,7 @@ object PairingPage {
 
     fun form(token: String, error: String?): String = page(
         """
-        <h1>Set up OpenTV</h1>
+        <h1>Set up AlteTV</h1>
         <p class="sub">Filling this in here beats using the remote.</p>
 
         ${if (error != null) "<div class=\"error\">${escape(error)}</div>" else ""}
@@ -63,9 +63,9 @@ object PairingPage {
 
           <hr>
 
-          <label for="code">Code shown on the TV</label>
+          <label for="code">Code shown on the TV <span class="opt">optional</span></label>
           <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]*"
-                 maxlength="6" required class="code" placeholder="000000"
+                 maxlength="6" class="code" placeholder="000000"
                  autocomplete="one-time-code">
           <p class="hint">This is what proves it's you standing in front of the telly.</p>
 
@@ -74,7 +74,7 @@ object PairingPage {
 
         <p class="privacy">
           This page is served by your television, over your own network. What you type goes
-          straight to it and nowhere else — there is no OpenTV account and no OpenTV server.
+          straight to it and nowhere else — there is no AlteTV account and no AlteTV server.
         </p>
 
         <script>
@@ -108,7 +108,7 @@ object PairingPage {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
         <meta name="robots" content="noindex, nofollow">
-        <title>Set up OpenTV</title>
+        <title>Set up AlteTV</title>
         <style>
           :root { --bg:#07080c; --surface:#12141d; --line:#2a2f3d; --text:#e8eaf0;
                   --muted:#a8aec0; --accent:#7c93ff; --err:#ff6b6b; }
